@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aggregate Capacity Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            color: #333;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .sidebar h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .sidebar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            font-size: 18px;
+            margin: 10px 0;
+            display: block;
+            padding: 10px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        .sidebar a:hover {
+            background-color: #34495e;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .main-content h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 300px;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .form-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .form-container input, .form-container button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f8f8;
+        }
+        .save-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .download-button {
+            margin: 20px 0;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Menu</h2>
+        <a href="#" onclick="showAggregateManagement()">Aggregate Management</a>
+    </div>
+    <div class="main-content">
+        <h1>Aggregate Capacity Management</h1>
+        <div id="aggregate-management" style="display: none;">
+            <div class="chart-container">
+                <canvas id="aggregateChart"></canvas>
+                <p id="aggregateCapacityDisplay">Aggregate Capacity: $10M</p>
+            </div>
+            <div class="form-container">
+                <input type="number" id="transactionAmount" placeholder="Enter aggregate limit">
+                <button onclick="addTransaction()">Add Transaction</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sno</th>
+                        <th>Policy Number</th>
+                        <th>Aggregate Limit</th>
+                        <th>Inforce TIV</th>
+                        <th>Aggregate Available</th>
+                        <th>% Utilized</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="policyTableBody">
+                    <!-- Dynamic rows will be added here -->
+                </tbody>
+            </table>
+            <button class="download-button" onclick="downloadReport()">Download Report</button>
+            <button class="save-button" onclick="saveChanges()">Save</button>
+            <p>Note: We are simulating the addition of aggregate limits in this dashboard as we cannot display the complete policy lifecycle here.</p>
+        </div>
+    </div>
+
+    <script>
+        const aggregateLimit = 10000000; // 10M initial aggregate capacity
+        let currentAggregate = aggregateLimit;
+        let policies = [];
+        let chart;
+
+        function updateChart() {
+            let remainingColor = 'green';
+            let usedColor = 'yellow';
+            let remainingCapacity = currentAggregate;
+            let usedCapacity = aggregateLimit - currentAggregate;
+            
+            const ctx = document.getElementById('aggregateChart').getContext('2d');
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Remaining Capacity', 'Used Capacity'],
+                    datasets: [{
+                        label: 'Aggregate Capacity',
+                        data: [remainingCapacity, usedCapacity],
+                        backgroundColor: [remainingColor, usedColor],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                    }
+                },
+            });
+            document.getElementById('aggregateCapacityDisplay').textContent = `Aggregate Capacity: $${(currentAggregate / 1000000).toFixed(1)}M`;
+        }
+
+        function addTransaction() {
+            const amount = parseFloat(document.getElementById('transactionAmount').value);
+            if (isNaN(amount) || amount <= 0) return;
+
+            currentAggregate -= amount;
+            policies.push({ number: policies.length + 1, limit: amount });
+            updateTable();
+            updateChart();
+        }
+
+        function modifyTransaction(index) {
+            const amount = parseFloat(prompt("Enter new aggregate limit amount"));
+            if (isNaN(amount) || amount <= 0) return;
+
+            currentAggregate += policies[index].limit - amount;
+            policies[index].limit = amount;
+            updateTable();
+            updateChart();
+        }
+
+        function deleteTransaction(index) {
+            currentAggregate += policies[index].limit;
+            policies.splice(index, 1);
+            updateTable();
+            updateChart();
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('policyTableBody');
+            tbody.innerHTML = '';
+            policies.forEach((policy, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${index + 1}</td><td>${policy.number}</td><td>${policy.limit}</td><td>${policy.limit}</td><td>${aggregateLimit - currentAggregate}</td><td>${((aggregateLimit - currentAggregate) / aggregateLimit * 100).toFixed(2)}</td><td><button onclick="modifyTransaction(${index})">Modify</button><button onclick="deleteTransaction(${index})">Delete</button></td>`;
+                tbody.appendChild(row);
+            });
+        }
+
+        function saveChanges() {
+            alert('Changes saved!');
+        }
+
+        function showAggregateManagement() {
+            document.getElementById('aggregate-management').style.display = 'block';
+            updateChart();
+        }
+
+        function downloadReport() {
+            const wb = XLSX.utils.book_new();
+            const wsData = [['Sno', 'Week of the Year', 'As of Date', 'Batch', 'Carrier Name', 'Contract Number', 'State', 'Zone', 'Tier', 'County', 'City', 'Zipcode', 'Allocation Type (Direct/Combined/Gate)', 'Combined Category', 'Gate Name', 'Gate Number', 'Aggregate Limit', 'Inforce TIV', 'Aggregate Available', '% Utilized', 'Projected New Business TIV', 'Projected New Business % Utilized', 'Projection of NB and Renewal till Contract End', 'Projected TIV @ Contract End', 'Projected % Utilized @ Contract End', 'Cancellation Ratio (Yearwise Data)', 'Projected TIV @ Contract End With Cancellation Ratio', 'Projected % Utilized @ Contract End With Cancellation Ratio']];
+            policies.forEach((policy, index) => {
+                wsData.push([index + 1, '106', '2023-07-04', '1', 'Carrier Name', policy.number, 'AL', 'ALL', 'ALL', 'ALL', 'ALL', 'ALL', 'Direct', '', '', '', aggregateLimit, policy.limit, aggregateLimit - currentAggregate, ((aggregateLimit - currentAggregate) / aggregateLimit * 100).toFixed(2), '', '', '', '', '', '', '', '']);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Report');
+            XLSX.writeFile(wb, 'AggregateCapacityReport.xlsx');
+        }
+    </script>
+</body>
+</html>
